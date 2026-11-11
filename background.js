@@ -37,9 +37,20 @@ async function iniciarCaptura(tabId) {
 
   // 3. Obtener el ID del stream de audio de la pestaña activa
   try {
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: tabId
-    });
+    let streamId;
+    try {
+      streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+    } catch (e) {
+      const m = (e && (e.message || e.toString())) || '';
+      if (m.toLowerCase().includes('active stream')) {
+        // Detener captura previa y reintentar
+        chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-capture' });
+        await new Promise((r) => setTimeout(r, 600));
+        streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+      } else {
+        throw e;
+      }
+    }
 
     // 4. Enviar el ID al documento oculto para iniciar la magia
     chrome.runtime.sendMessage({
@@ -49,6 +60,7 @@ async function iniciarCaptura(tabId) {
     });
   } catch (error) {
     console.error("Error al obtener el stream de la pestaña:", error);
-    chrome.runtime.sendMessage({ type: 'capture-error', error: "No se pudo capturar la pestaña. Asegúrate de que no esté silenciada." });
+    const detail = (error && (error.message || error.toString())) ? (error.message || error.toString()) : "desconocido";
+    chrome.runtime.sendMessage({ type: 'capture-error', error: `No se pudo capturar la pestaña: ${detail}` });
   }
 }
