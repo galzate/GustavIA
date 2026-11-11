@@ -4,12 +4,11 @@ let fullTranscript = "";
 let mediaRecorder = null;
 let recordedChunks = [];
 
-// Configuración de STT (Groq Whisper) para transcribir el audio de la pestaña
-const WHISPER_API_KEY = "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";
+// API keys cargadas desde config.js (ver offscreen.html)
+const WHISPER_API_KEY = typeof GROQ_API_KEY !== 'undefined' ? GROQ_API_KEY : '';
 const WHISPER_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 const WHISPER_MODEL = "whisper-large-v3";
 
-// Configuración de IA (Groq) para el resumen — misma clave que Whisper
 const API_KEY = WHISPER_API_KEY;
 const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL_ID = "openai/gpt-oss-20b";
