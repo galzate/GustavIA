@@ -87,7 +87,7 @@
   let currentTranscript = '';
   let currentSummary = '';
   let currentStatus = 'Inactivo';
-  let minimized = false;
+  let hasDragged = false;
 
   function saveState() {
     try {
@@ -97,9 +97,9 @@
           summary: currentSummary,
           status: currentStatus,
           statusClass: statusEl.className,
-          minimized,
-          left: panel.style.left,
-          top: panel.style.top
+          hasDragged,
+          left: hasDragged ? panel.style.left : null,
+          top: hasDragged ? panel.style.top : null
         }
       });
     } catch (e) {}
@@ -117,8 +117,13 @@
         transcriptEl.value = currentTranscript;
         if (currentSummary) { resultEl.innerText = currentSummary; exportBtn.style.display = 'block'; }
         if (s.minimized) { panel.classList.add('minimized'); minimized = true; minBtn.textContent = '+'; }
-        if (s.left) { panel.style.left = s.left; panel.style.right = 'auto'; }
-        if (s.top) { panel.style.top = s.top; }
+        // Restaurar posición solo si se arrastró
+        if (s.hasDragged && s.left) {
+          panel.style.left = s.left; panel.style.right = 'auto';
+          if (s.top) panel.style.top = s.top;
+        } else {
+          panel.style.left = 'auto'; panel.style.right = '16px'; panel.style.top = '16px';
+        }
         if (currentStatus === '🔴 Grabando en silencio') { stopBtn.style.display = 'block'; }
         else { stopBtn.style.display = 'none'; }
       });
@@ -216,7 +221,7 @@
     panel.style.top = (e.clientY - offsetY) + 'px';
   });
   document.addEventListener('mouseup', () => {
-    if (dragging) { dragging = false; saveState(); }
+    if (dragging) { dragging = false; hasDragged = true; saveState(); }
   });
 
   restoreState();
