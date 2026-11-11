@@ -15,8 +15,11 @@ function startBadge() {
   if (badgeInterval) clearInterval(badgeInterval);
   try { chrome.action.setBadgeBackgroundColor({ color: '#d13438' }); } catch (e) {}
   let on = true;
-  try { chrome.action.setBadgeText({ text: '●' }); } catch (e) {}
-  badgeInterval = setInterval(() => { on = !on; try { chrome.action.setBadgeText({ text: on ? '●' : '' }); } catch (e) {} }, 500);
+  try { chrome.action.setBadgeText({ text: 'REC' }); } catch (e) {}
+  badgeInterval = setInterval(() => {
+    on = !on;
+    try { chrome.action.setBadgeText({ text: on ? 'REC' : '' }); } catch (e) {}
+  }, 600);
 }
 function stopBadge() {
   if (badgeInterval) { clearInterval(badgeInterval); badgeInterval = null; }
