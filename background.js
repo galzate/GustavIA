@@ -1,5 +1,31 @@
 // background.js
+
+// --- Badge titilante en el icono mientras se graba (vive en el service worker,
+//     por eso sigue titilando aunque se cierre el popup) ---
+let badgeInterval = null;
+function startBadge() {
+  if (badgeInterval) clearInterval(badgeInterval);
+  try { chrome.action.setBadgeBackgroundColor({ color: '#d13438' }); } catch (e) {}
+  let on = true;
+  try { chrome.action.setBadgeText({ text: 'REC' }); } catch (e) {}
+  badgeInterval = setInterval(() => {
+    on = !on;
+    try { chrome.action.setBadgeText({ text: on ? 'REC' : '' }); } catch (e) {}
+  }, 600);
+}
+function stopBadge() {
+  if (badgeInterval) { clearInterval(badgeInterval); badgeInterval = null; }
+  try { chrome.action.setBadgeText({ text: '' }); } catch (e) {}
+}
+
+chrome.runtime.onInstalled.addListener(() => { stopBadge(); });
+chrome.runtime.onStartup.addListener(() => { stopBadge(); });
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Gestionar badge según eventos de captura (funciona aunque el popup esté cerrado)
+  if (message.type === 'capture-started') { startBadge(); }
+  if (message.type === 'capture-stopped' || message.type === 'capture-error') { stopBadge(); }
+
   if (message.type === 'start-capture-request') {
     // El popup se ejecuta en un contexto de extensión, por lo que sender.tab
     // puede ser undefined. Obtenemos la pestaña activa de la ventana actual.

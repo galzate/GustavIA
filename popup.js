@@ -9,23 +9,6 @@ let currentTranscript = "";
 let currentSummary = "";
 let currentStatus = "Inactivo";
 
-// --- Badge titilante en el icono mientras se graba ---
-let badgeInterval = null;
-function startBadge() {
-  if (badgeInterval) clearInterval(badgeInterval);
-  try { chrome.action.setBadgeBackgroundColor({ color: '#d13438' }); } catch (e) {}
-  let on = true;
-  try { chrome.action.setBadgeText({ text: 'REC' }); } catch (e) {}
-  badgeInterval = setInterval(() => {
-    on = !on;
-    try { chrome.action.setBadgeText({ text: on ? 'REC' : '' }); } catch (e) {}
-  }, 600);
-}
-function stopBadge() {
-  if (badgeInterval) { clearInterval(badgeInterval); badgeInterval = null; }
-  try { chrome.action.setBadgeText({ text: '' }); } catch (e) {}
-}
-
 function saveState() {
   try {
     chrome.storage.local.set({
@@ -73,7 +56,6 @@ chrome.runtime.onMessage.addListener((message) => {
     statusDiv.className = 'recording';
     startBtn.style.display = 'none';
     stopBtn.style.display = 'block';
-    startBadge();
     saveState();
   }
   
@@ -103,7 +85,6 @@ chrome.runtime.onMessage.addListener((message) => {
     transcriptArea.value = currentTranscript;
     resultDiv.innerText = currentSummary;
     exportBtn.style.display = 'block';
-    stopBadge();
     saveState();
   }
   
@@ -113,7 +94,6 @@ chrome.runtime.onMessage.addListener((message) => {
     statusDiv.className = '';
     startBtn.style.display = 'block';
     stopBtn.style.display = 'none';
-    stopBadge();
     resultDiv.innerText = 'Error: ' + message.error;
     saveState();
   }
@@ -147,6 +127,5 @@ exportBtn.onclick = () => {
   a.click();
 };
 
-// Restaurar estado al abrir el popup; limpiar badge residual
+// Restaurar estado al abrir el popup
 restoreState();
-stopBadge();
