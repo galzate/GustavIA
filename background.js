@@ -124,7 +124,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Parar captura (desde el panel flotante o popup)
   if (message.type === 'stop-capture') {
-    chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-capture' });
+    const existing = chrome.runtime.getContexts ? null : null;
+    chrome.runtime.getContexts({}).then((ctxs) => {
+      const hasDoc = ctxs.some((c) => c.contextType === 'OFFSCREEN_DOCUMENT');
+      if (!hasDoc) {
+        chrome.runtime.sendMessage({ type: 'capture-error', error: 'El documento de captura se cerró. Recarga la página.' });
+        return;
+      }
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-capture' });
+    }).catch(() => {
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop-capture' });
+    });
     return;
   }
 

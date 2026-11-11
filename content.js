@@ -168,7 +168,19 @@
     }
   });
 
-  stopBtn.onclick = () => { chrome.runtime.sendMessage({ type: 'stop-capture' }); };
+  stopBtn.onclick = () => {
+    stopBtn.style.display = 'none';
+    setStatus('⏳ Procesando IA...', '');
+    chrome.runtime.sendMessage({ type: 'stop-capture' });
+    // Si no hay respuesta en 15s, mostrar error
+    setTimeout(() => {
+      if (currentStatus === '⏳ Procesando IA...') {
+        setStatus('❌ Error', '');
+        resultEl.innerText = 'Error: La captura no respondió. Recarga la página e intenta de nuevo.';
+        saveState();
+      }
+    }, 15000);
+  };
 
   exportBtn.onclick = () => {
     const date = new Date().toLocaleDateString().replace(/\//g, '-');
