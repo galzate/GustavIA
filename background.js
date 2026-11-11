@@ -88,8 +88,18 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // Mensajes de los contextos
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Reenviar mensajes del offscreen document a la pestaña activa (garantiza entrega al panel flotante)
+  const fromOffscreen = sender && sender.url && sender.url.includes('offscreen.html');
+  if (fromOffscreen && ['capture-started','capture-error','capture-stopped','transcript-update','generating-summary'].includes(message.type)) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {});
+      }
+    });
+  }
+
   // Badge según eventos de captura
-  if (message.type === 'capture-started') { startBadge(); return; }
+  if (message.type === 'capture-started') { isRecording = true; startBadge(); return; }
   if (message.type === 'capture-stopped' || message.type === 'capture-error') { isRecording = false; stopBadge(); return; }
 
   // offscreen ready handshake
