@@ -14,7 +14,7 @@
   style.textContent = `
     :host { all: initial; }
     .gv-panel {
-      position: fixed; width: 320px; max-height: 80vh;
+      position: fixed; right: 0; top: 0; width: 320px; max-height: 80vh;
       background: #1e1e2e; color: #cdd6f4; font-family: 'Segoe UI', sans-serif;
       border-radius: 16px 0 0 16px; overflow: hidden; box-shadow: -6px 8px 32px rgba(0,0,0,0.5);
       z-index: 2147483647; display: none; flex-direction: column;
