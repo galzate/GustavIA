@@ -32,7 +32,10 @@
     <textarea id="transcript" placeholder="Transcripción en vivo (solo visible para ti)..." readonly></textarea>
     <h3 style="font-size:14px; margin:10px 0 5px;">Resumen IA:</h3>
     <div id="result">Esperando datos de la reunión...</div>
-    <button id="exportBtn">📥 Exportar Notas (.md)</button>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button id="exportBtn" style="flex:1;">📄 .docx</button>
+      <button id="exportMdBtn" style="flex:1;">📝 .md</button>
+    </div>
   </div>
   <script src="popup.js"></script>
 </body>

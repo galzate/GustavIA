@@ -5,7 +5,7 @@ let mediaRecorder = null;
 let recordedChunks = [];
 
 // Configuración de STT (Groq Whisper) para transcribir el audio de la pestaña
-const WHISPER_API_KEY = "";
+const WHISPER_API_KEY = "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";
 const WHISPER_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 const WHISPER_MODEL = "whisper-large-v3";
 
