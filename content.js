@@ -53,7 +53,6 @@
       <h1>✨ GustavIA</h1>
       <div class="gv-header-actions">
         <span class="gv-status" id="gv-status">Inactivo</span>
-        <button class="gv-iconbtn" id="gv-min" title="Minimizar">—</button>
         <button class="gv-iconbtn" id="gv-close" title="Cerrar">✕</button>
       </div>
     </div>
@@ -79,16 +78,14 @@
   const stopBtn = $('gv-stop');
   const exportBtn = $('gv-export');
   const closeBtn = $('gv-close');
-  const minBtn = $('gv-min');
   const dragHandle = $('gv-drag');
 
   let currentTranscript = '';
   let currentSummary = '';
   let currentStatus = 'Inactivo';
-  let minimized = false;
 
   function saveState() {
-    try { chrome.storage.local.set({ gustavia_state: { transcript: currentTranscript, summary: currentSummary, status: currentStatus, statusClass: statusEl.className, minimized } }); } catch (e) {}
+    try { chrome.storage.local.set({ gustavia_state: { transcript: currentTranscript, summary: currentSummary, status: currentStatus, statusClass: statusEl.className } }); } catch (e) {}
   }
   function restoreState() {
     try {
@@ -102,7 +99,6 @@
         statusEl.className = 'gv-status ' + (s.statusClass || '');
         transcriptEl.value = currentTranscript;
         if (currentSummary) { resultEl.innerText = currentSummary; exportBtn.style.display = 'block'; }
-        if (s.minimized) { panel.classList.add('minimized'); minimized = true; }
         if (currentStatus === '🔴 Grabando en silencio') { stopBtn.style.display = 'block'; }
         else { stopBtn.style.display = 'none'; }
       });
@@ -163,16 +159,8 @@
 
   closeBtn.onclick = () => { panel.classList.remove('open'); };
 
-  minBtn.onclick = () => {
-    minimized = !minimized;
-    panel.classList.toggle('minimized', minimized);
-    minBtn.textContent = minimized ? '+' : '—';
-    saveState();
-  };
-
   let dragging = false, offsetX = 0, offsetY = 0;
   dragHandle.addEventListener('mousedown', (e) => {
-    if (minimized) return;
     dragging = true;
     const rect = panel.getBoundingClientRect();
     offsetX = e.clientX - rect.left;
