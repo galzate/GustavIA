@@ -1,11 +1,18 @@
 let recognition;
 let mediaStream = null;
 let fullTranscript = "";
+let mediaRecorder = null;
+let recordedChunks = [];
 
-// Configuración de IA (OpenCode Zen)
-const API_KEY = "TU_API_KEY_AQUI"; 
-const API_URL = "https://opencode.ai/zen/v1/chat/completions";
-const MODEL_ID = "big-pickle"; 
+// Configuración de STT (Groq Whisper) para transcribir el audio de la pestaña
+const WHISPER_API_KEY = "";
+const WHISPER_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
+const WHISPER_MODEL = "whisper-large-v3";
+
+// Configuración de IA (Groq) para el resumen — misma clave que Whisper
+const API_KEY = WHISPER_API_KEY;
+const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL_ID = "openai/gpt-oss-20b";
 
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.target !== 'offscreen') return;
@@ -31,6 +38,27 @@ async function startCapture(streamId) {
       video: false
     });
 
+    // Reproducir el audio capturado para que la pestaña no quede silenciada
+    try {
+      const audioEl = new Audio();
+      audioEl.srcObject = mediaStream;
+      audioEl.play().catch(() => {});
+    } catch (e) {}
+
+    // Grabación real del audio de la pestaña (para STT fiel)
+    recordedChunks = [];
+    try {
+      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.start(1000);
+    } catch (e) {
+      console.warn('MediaRecorder no disponible:', e);
+      mediaRecorder = null;
+    }
+
+    // Transcripción en tiempo real (mejor esfuerzo con Web Speech API)
     if ('webkitSpeechRecognition' in window) {
       recognition = new webkitSpeechRecognition();
       recognition.continuous = true;
@@ -52,7 +80,9 @@ async function startCapture(streamId) {
 
       recognition.onerror = (event) => console.error('Error de reconocimiento:', event.error);
 
-      recognition.start();
+      try { recognition.start(); } catch (e) { console.warn('recognition.start:', e); }
+      chrome.runtime.sendMessage({ type: 'capture-started' });
+    } else {
       chrome.runtime.sendMessage({ type: 'capture-started' });
     }
   } catch (error) {
@@ -63,14 +93,57 @@ async function startCapture(streamId) {
 
 async function stopCapture() {
   if (recognition) { recognition.stop(); recognition = null; }
+
+  let audioBlob = null;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    await new Promise((resolve) => {
+      mediaRecorder.onstop = () => resolve();
+      mediaRecorder.stop();
+    });
+  }
+  if (recordedChunks.length > 0) {
+    audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+  }
   if (mediaStream) { mediaStream.getTracks().forEach(track => track.stop()); mediaStream = null; }
+
+  // Si hay clave de Groq, transcribir el audio capturado de forma fiel
+  if (audioBlob && WHISPER_API_KEY) {
+    chrome.runtime.sendMessage({ type: 'generating-summary' });
+    try {
+      const text = await transcribeWithWhisper(audioBlob);
+      if (text && text.trim()) fullTranscript = text;
+      chrome.runtime.sendMessage({ type: 'transcript-update', text: fullTranscript });
+    } catch (e) {
+      console.error('Error en Whisper:', e);
+      chrome.runtime.sendMessage({ type: 'capture-stopped', summary: `Error de Whisper: ${e.message || e}`, transcript: fullTranscript });
+      return;
+    }
+  }
 
   if (fullTranscript.trim()) {
     chrome.runtime.sendMessage({ type: 'generating-summary' });
     await generateSummary(fullTranscript);
+  } else if (!audioBlob) {
+    chrome.runtime.sendMessage({ type: 'capture-stopped', summary: 'No se grabó audio de la pestaña. Asegúrate de que el video tenga sonido y la pestaña no esté silenciada.', transcript: '' });
   } else {
-    chrome.runtime.sendMessage({ type: 'capture-stopped', summary: 'No se detectó audio.' });
+    chrome.runtime.sendMessage({ type: 'capture-stopped', summary: 'Whisper no devolvió texto. Revisa la consola del service worker.', transcript: '' });
   }
+}
+
+async function transcribeWithWhisper(blob) {
+  const form = new FormData();
+  form.append('file', blob, 'capture.webm');
+  form.append('model', WHISPER_MODEL);
+  form.append('language', 'es');
+
+  const response = await fetch(WHISPER_API_URL, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${WHISPER_API_KEY}` },
+    body: form
+  });
+  if (!response.ok) throw new Error(`Whisper HTTP ${response.status}`);
+  const data = await response.json();
+  return data.text || '';
 }
 
 async function generateSummary(text) {
