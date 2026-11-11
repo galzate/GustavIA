@@ -19,19 +19,14 @@
       border: 1px solid #e1dfdd;
     }
     .gv-panel.open { display: flex; }
-    .gv-panel.minimized { width: 140px; max-height: none; }
-    .gv-panel.minimized .gv-body { display: none; }
     .gv-header {
       background: #fff; padding: 10px 12px; border-bottom: 1px solid #e1dfdd;
       display: flex; justify-content: space-between; align-items: center;
       cursor: move; user-select: none;
     }
     .gv-header h1 { font-size: 15px; margin: 0; color: #5b5fc7; }
-    .gv-header-actions { display: flex; gap: 4px; align-items: center; }
-    .gv-iconbtn { background: transparent; border: none; cursor: pointer; font-size: 14px; color: #323130; padding: 0 4px; line-height: 1; }
     .gv-status { font-size: 10px; padding: 3px 7px; border-radius: 10px; background: #e1dfdd; font-weight: 600; white-space: nowrap; }
     .gv-status.recording { background: #fed9cc; color: #d13438; }
-    .gv-body { display: flex; flex-direction: column; }
     .gv-controls { padding: 8px 12px; display: flex; gap: 6px; }
     .gv-btn { flex: 1; padding: 7px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; transition: 0.2s; }
     .gv-stop { background: #d13438; color: #fff; }
@@ -40,6 +35,7 @@
     .gv-h3 { font-size: 12px; margin: 6px 0 4px; }
     .gv-result { background: #fff; border: 1px solid #e1dfdd; border-radius: 6px; padding: 8px; min-height: 60px; max-height: 160px; font-size: 12px; line-height: 1.4; overflow-y: auto; white-space: pre-wrap; }
     .gv-export { background: transparent; color: #5b5fc7; border: 1px solid #5b5fc7; display: none; width: 100%; margin-top: 8px; padding: 7px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
+    .gv-close { background: transparent; border: none; cursor: pointer; font-size: 16px; color: #323130; padding: 0 4px; }
     .gv-hint { padding: 0 12px 8px; font-size: 10px; color: #666; }
     .gv-content::-webkit-scrollbar { width: 6px; }
     .gv-content::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
@@ -51,16 +47,16 @@
   panel.innerHTML = `
     <div class="gv-header" id="gv-drag">
       <h1>✨ GustavIA</h1>
-      <div class="gv-header-actions">
+      <div style="display:flex;align-items:center;gap:6px;">
         <span class="gv-status" id="gv-status">Inactivo</span>
-        <button class="gv-iconbtn" id="gv-close" title="Cerrar">✕</button>
+        <button class="gv-close" id="gv-close" title="Cerrar">✕</button>
       </div>
     </div>
     <div class="gv-body">
       <div class="gv-controls">
         <button class="gv-btn gv-stop" id="gv-stop">⏹ Detener</button>
       </div>
-      <div class="gv-hint">Haz clic en el icono de la extensión para iniciar/parar la captura.</div>
+      <div class="gv-hint">Inicia la captura desde el popup de la extensión.</div>
       <div class="gv-content">
         <textarea class="gv-textarea" id="gv-transcript" placeholder="Transcripción en vivo..." readonly></textarea>
         <div class="gv-h3">Resumen IA:</div>
@@ -99,7 +95,7 @@
         statusEl.className = 'gv-status ' + (s.statusClass || '');
         transcriptEl.value = currentTranscript;
         if (currentSummary) { resultEl.innerText = currentSummary; exportBtn.style.display = 'block'; }
-        if (currentStatus === '🔴 Grabando en silencio') { stopBtn.style.display = 'block'; }
+        if (currentStatus === '🔴 Grabando en silencio') { stopBtn.style.display = 'block'; panel.classList.add('open'); }
         else { stopBtn.style.display = 'none'; }
       });
     } catch (e) {}
@@ -116,7 +112,7 @@
     if (msg.type === 'capture-started') {
       setStatus('🔴 Grabando en silencio', 'recording');
       stopBtn.style.display = 'block';
-      if (!panel.classList.contains('open')) panel.classList.add('open');
+      panel.classList.add('open');
       saveState();
     } else if (msg.type === 'transcript-update') {
       currentTranscript = msg.text || '';
@@ -135,6 +131,7 @@
       transcriptEl.value = currentTranscript;
       resultEl.innerText = currentSummary;
       exportBtn.style.display = 'block';
+      panel.classList.add('open');
       saveState();
     } else if (msg.type === 'capture-error') {
       setStatus('❌ Error', '');
