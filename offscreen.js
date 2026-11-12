@@ -5,6 +5,7 @@ let whisperTranscript = "";
 let mediaRecorder = null;
 let recordedChunks = [];
 let captureLanguage = 'es';
+let captureSettings = {};
 let chunkTimer = null;
 let partialTimer = null;
 let lastPartialLen = 0;
@@ -20,10 +21,14 @@ const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL_ID = "openai/gpt-oss-20b";
 const DEFAULT_PROMPT = "Eres GustavIA, un asistente experto. Genera un resumen de la reunión con: Resumen Ejecutivo, Decisiones, Tareas (con responsables) y Preguntas Abiertas. Usa Markdown.";
 
+// Notificar al background que el documento está listo
+chrome.runtime.sendMessage({ type: 'offscreen-ready' });
+
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.target !== 'offscreen') return;
   if (message.type === 'start-capture') {
     captureLanguage = message.language || 'es';
+    captureSettings = message.settings || {};
     startCapture(message.data);
   }
   if (message.type === 'stop-capture') {
@@ -42,11 +47,6 @@ function speechLang(lang) {
   return 'es-ES';
 }
 
-async function getSettings() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get('gustavia_settings', (d) => resolve((d && d.gustavia_settings) || {}));
-  });
-}
 
 async function startCapture(streamId) {
   fullTranscript = "";
@@ -148,8 +148,7 @@ function startPartialTimer() {
     if (text.length - lastPartialLen < 300) return;
     lastPartialLen = text.length;
     try {
-      const settings = await getSettings();
-      const privacyNote = settings.privacyMode ? ' Reemplaza nombres propios de personas con [Persona A], [Persona B], etc.' : '';
+      const privacyNote = captureSettings.privacyMode ? ' Reemplaza nombres propios de personas con [Persona A], [Persona B], etc.' : '';
       const resp = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
@@ -224,9 +223,8 @@ async function transcribeWithWhisper(blob) {
 
 async function generateSummary(text) {
   try {
-    const settings = await getSettings();
-    const customPrompt = settings.customPrompt || DEFAULT_PROMPT;
-    const privacyNote = settings.privacyMode
+    const customPrompt = captureSettings.customPrompt || DEFAULT_PROMPT;
+    const privacyNote = captureSettings.privacyMode
       ? ' Reemplaza todos los nombres propios de personas con [Persona A], [Persona B], etc., de forma consistente.'
       : '';
 

@@ -2,6 +2,7 @@
 let offscreenReady = false;
 let pendingStreamId = null;
 let pendingLanguage = 'es';
+let pendingSettings = {};
 let isRecording = false;
 
 let badgeInterval = null;
@@ -61,9 +62,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (pendingStreamId) {
       const sid = pendingStreamId;
       const lang = pendingLanguage;
+      const settings = pendingSettings;
       pendingStreamId = null;
       pendingLanguage = 'es';
-      chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: sid, language: lang });
+      pendingSettings = {};
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: sid, language: lang, settings });
     }
     return;
   }
@@ -71,6 +74,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'start-capture-request') {
     if (isRecording) return;
     const lang = message.language || 'es';
+    const settings = message.settings || {};
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       const tabId = tabs && tabs[0] ? tabs[0].id : null;
       if (!tabId) {
@@ -82,7 +86,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!streamId) throw new Error('Sin stream ID');
         isRecording = true;
         startBadge();
-        handleStart(streamId, lang);
+        handleStart(streamId, lang, settings);
       } catch (e) {
         chrome.runtime.sendMessage({ type: 'capture-error', error: (e && e.message) || 'Error al capturar la pestaña.' });
       }
@@ -123,7 +127,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function handleStart(streamId, language = 'es') {
+async function handleStart(streamId, language = 'es', settings = {}) {
   const existing = await chrome.runtime.getContexts({});
   const hasDoc = existing.some((c) => c.contextType === 'OFFSCREEN_DOCUMENT');
 
@@ -131,6 +135,7 @@ async function handleStart(streamId, language = 'es') {
     offscreenReady = false;
     pendingStreamId = streamId;
     pendingLanguage = language;
+    pendingSettings = settings;
     try {
       await chrome.offscreen.createDocument({
         url: 'offscreen.html',
@@ -140,10 +145,11 @@ async function handleStart(streamId, language = 'es') {
     } catch (error) {
       console.error('Error al crear documento oculto:', error);
       pendingStreamId = null;
+      pendingSettings = {};
       chrome.runtime.sendMessage({ type: 'capture-error', error: 'No se pudo crear el documento de captura.' });
     }
   } else {
-    chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: streamId, language });
+    chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: streamId, language, settings });
   }
 }
 

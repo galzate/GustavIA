@@ -99,6 +99,12 @@
     .gv-hist-preview { font-size: 11px; color: #cdd6f4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .gv-hist-detail { margin-top: 7px; font-size: 11px; white-space: pre-wrap; max-height: 120px; overflow-y: auto; color: #bac2de; display: none; }
     .gv-hist-detail.open { display: block; }
+    .gv-hist-actions { display: flex; gap: 5px; margin-top: 7px; }
+    .gv-hist-btn { font-size: 10px; padding: 4px 8px; border-radius: 5px; border: none; cursor: pointer; font-weight: 600; }
+    .gv-hist-btn-regen { background: #cba6f7; color: #1e1e2e; }
+    .gv-hist-btn-regen:disabled { opacity: 0.4; cursor: not-allowed; }
+    .gv-hist-btn-del { background: #313244; color: #f38ba8; }
+    .gv-hist-regen-status { font-size: 10px; color: #a6adc8; margin-top: 4px; display: none; }
 
     /* Settings overlay */
     .gv-settings-overlay {
@@ -300,6 +306,44 @@
       chrome.storage.local.set({ gustavia_history: history });
     });
   }
+  async function regenSummary(index, transcript, btnEl, statusEl) {
+    const apiKey = typeof GROQ_API_KEY !== 'undefined' ? GROQ_API_KEY : '';
+    if (!apiKey) { statusEl.textContent = '❌ Falta la API key en config.js'; statusEl.style.display = 'block'; return; }
+    if (!transcript || !transcript.trim()) { statusEl.textContent = '❌ No hay transcripción guardada'; statusEl.style.display = 'block'; return; }
+    btnEl.disabled = true;
+    statusEl.textContent = '⏳ Generando resumen...';
+    statusEl.style.display = 'block';
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'openai/gpt-oss-20b',
+          messages: [
+            { role: 'system', content: 'Eres GustavIA, un asistente experto. Genera un resumen de la reunión con: Resumen Ejecutivo, Decisiones, Tareas (con responsables) y Preguntas Abiertas. Usa Markdown.' },
+            { role: 'user', content: transcript }
+          ]
+        })
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const newSummary = data.choices[0].message.content;
+      chrome.storage.local.get('gustavia_history', (d) => {
+        const history = (d && d.gustavia_history) || [];
+        if (history[index]) {
+          history[index].summary = newSummary;
+          chrome.storage.local.set({ gustavia_history: history }, () => {
+            statusEl.textContent = '✅ Resumen actualizado';
+            renderHistory();
+          });
+        }
+      });
+    } catch (e) {
+      statusEl.textContent = '❌ Error: ' + e.message;
+      btnEl.disabled = false;
+    }
+  }
+
   function renderHistory() {
     chrome.storage.local.get('gustavia_history', (d) => {
       const history = (d && d.gustavia_history) || [];
@@ -309,18 +353,41 @@
       }
       historyList.innerHTML = '';
       history.forEach((item, i) => {
+        const hasError = item.summary && item.summary.startsWith('Error de API:');
         const div = document.createElement('div');
         div.className = 'gv-hist-item';
-        const preview = (item.summary || '').slice(0, 80) + ((item.summary || '').length > 80 ? '…' : '');
+        const preview = hasError ? '⚠️ Resumen fallido — transcripción disponible' : (item.summary || '').slice(0, 80) + ((item.summary || '').length > 80 ? '…' : '');
         div.innerHTML = `
           <div class="gv-hist-date">📅 ${item.date}</div>
           <div class="gv-hist-preview">${preview || 'Sin resumen'}</div>
+          <div class="gv-hist-actions">
+            <button class="gv-hist-btn gv-hist-btn-regen" id="hist-regen-${i}">🔄 Re-generar resumen</button>
+            <button class="gv-hist-btn gv-hist-btn-del" id="hist-del-${i}">🗑️ Eliminar</button>
+          </div>
+          <div class="gv-hist-regen-status" id="hist-status-${i}"></div>
           <div class="gv-hist-detail" id="hist-detail-${i}">${item.summary}\n\n---\n\n${item.transcript}</div>
         `;
-        div.onclick = () => {
+
+        div.querySelector(`#hist-detail-${i}`).addEventListener('click', (e) => e.stopPropagation());
+        div.querySelector(`#hist-regen-${i}`).addEventListener('click', (e) => {
+          e.stopPropagation();
+          const btn = shadow.getElementById(`hist-regen-${i}`);
+          const status = shadow.getElementById(`hist-status-${i}`);
+          regenSummary(i, item.transcript, btn, status);
+        });
+        div.querySelector(`#hist-del-${i}`).addEventListener('click', (e) => {
+          e.stopPropagation();
+          chrome.storage.local.get('gustavia_history', (d2) => {
+            const h = (d2 && d2.gustavia_history) || [];
+            h.splice(i, 1);
+            chrome.storage.local.set({ gustavia_history: h }, renderHistory);
+          });
+        });
+        div.addEventListener('click', () => {
           const detail = shadow.getElementById(`hist-detail-${i}`);
           if (detail) detail.classList.toggle('open');
-        };
+        });
+
         historyList.appendChild(div);
       });
     });
@@ -432,7 +499,11 @@
     setStatus('Iniciando...', '');
     chrome.storage.local.get('gustavia_settings', (d) => {
       const s = (d && d.gustavia_settings) || {};
-      chrome.runtime.sendMessage({ type: 'start-capture-request', language: s.language || langSel.value || 'es' });
+      chrome.runtime.sendMessage({
+        type: 'start-capture-request',
+        language: s.language || langSel.value || 'es',
+        settings: s
+      });
     });
   };
 
