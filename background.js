@@ -1,9 +1,9 @@
 // background.js
 let offscreenReady = false;
 let pendingStreamId = null;
+let pendingLanguage = 'es';
 let isRecording = false;
 
-// --- Badge titilante en el icono mientras se graba ---
 let badgeInterval = null;
 function startBadge() {
   if (badgeInterval) clearInterval(badgeInterval);
@@ -23,7 +23,7 @@ function stopBadge() {
 chrome.runtime.onInstalled.addListener(() => { stopBadge(); });
 chrome.runtime.onStartup.addListener(() => { stopBadge(); });
 
-// Clic en el icono: solo abre/cierra el panel — el usuario controla la grabación
+// Clic en el icono: solo abre/cierra el panel
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab || !tab.id) return;
   for (let i = 0; i < 3; i++) {
@@ -44,36 +44,33 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-// Mensajes de los contextos
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Reenviar mensajes del offscreen document a la pestaña activa (garantiza entrega al panel flotante)
+  // Reenviar mensajes del offscreen al panel flotante
   const fromOffscreen = sender && sender.url && sender.url.includes('offscreen.html');
-  if (fromOffscreen && ['capture-started','capture-error','capture-stopped','transcript-update','generating-summary'].includes(message.type)) {
+  if (fromOffscreen && ['capture-started','capture-error','capture-stopped','transcript-update','generating-summary','partial-summary-update'].includes(message.type)) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs && tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {});
-      }
+      if (tabs && tabs[0]) chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {});
     });
   }
 
-  // Badge según eventos de captura
   if (message.type === 'capture-started') { isRecording = true; startBadge(); return; }
   if (message.type === 'capture-stopped' || message.type === 'capture-error') { isRecording = false; stopBadge(); return; }
 
-  // offscreen ready handshake
   if (message.type === 'offscreen-ready') {
     offscreenReady = true;
     if (pendingStreamId) {
       const sid = pendingStreamId;
+      const lang = pendingLanguage;
       pendingStreamId = null;
-      chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: sid });
+      pendingLanguage = 'es';
+      chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: sid, language: lang });
     }
     return;
   }
 
-  // Iniciar captura (desde el panel flotante — botón Iniciar Grabación)
   if (message.type === 'start-capture-request') {
     if (isRecording) return;
+    const lang = message.language || 'es';
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       const tabId = tabs && tabs[0] ? tabs[0].id : null;
       if (!tabId) {
@@ -85,7 +82,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!streamId) throw new Error('Sin stream ID');
         isRecording = true;
         startBadge();
-        handleStart(streamId);
+        handleStart(streamId, lang);
       } catch (e) {
         chrome.runtime.sendMessage({ type: 'capture-error', error: (e && e.message) || 'Error al capturar la pestaña.' });
       }
@@ -93,9 +90,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  // Parar captura (desde el panel flotante o popup)
   if (message.type === 'stop-capture') {
-    const existing = chrome.runtime.getContexts ? null : null;
     chrome.runtime.getContexts({}).then((ctxs) => {
       const hasDoc = ctxs.some((c) => c.contextType === 'OFFSCREEN_DOCUMENT');
       if (!hasDoc) {
@@ -109,13 +104,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  // Estado de grabación (para sincronizar el panel al abrirse)
   if (message.type === 'get-recording-state') {
     sendResponse({ isRecording });
     return true;
   }
 
-  // get-active-tab-id
+  // Google Drive upload (chrome.identity only available in background)
+  if (message.type === 'drive-upload') {
+    handleDriveUpload(message, sendResponse);
+    return true;
+  }
+
   if (message.type === 'get-active-tab-id') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       sendResponse({ tabId: tabs && tabs[0] ? tabs[0].id : null });
@@ -124,13 +123,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function handleStart(streamId) {
+async function handleStart(streamId, language = 'es') {
   const existing = await chrome.runtime.getContexts({});
   const hasDoc = existing.some((c) => c.contextType === 'OFFSCREEN_DOCUMENT');
 
   if (!hasDoc) {
     offscreenReady = false;
     pendingStreamId = streamId;
+    pendingLanguage = language;
     try {
       await chrome.offscreen.createDocument({
         url: 'offscreen.html',
@@ -143,6 +143,40 @@ async function handleStart(streamId) {
       chrome.runtime.sendMessage({ type: 'capture-error', error: 'No se pudo crear el documento de captura.' });
     }
   } else {
-    chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: streamId });
+    chrome.runtime.sendMessage({ target: 'offscreen', type: 'start-capture', data: streamId, language });
   }
+}
+
+function handleDriveUpload(message, sendResponse) {
+  chrome.identity.getAuthToken({ interactive: true }, async (token) => {
+    if (chrome.runtime.lastError || !token) {
+      sendResponse({ success: false, error: chrome.runtime.lastError?.message || 'No se pudo autenticar con Google Drive. Verifica el OAuth Client ID en manifest.json.' });
+      return;
+    }
+    try {
+      const { summary, transcript, date } = message;
+      const content = `# Notas de Reunión — GustavIA\nFecha: ${date}\n\n## Resumen IA\n${summary}\n\n---\n\n## Transcripción\n${transcript}`;
+      const filename = `GustavIA_${date}.md`;
+      const metadata = { name: filename, mimeType: 'text/markdown' };
+
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', new Blob([content], { type: 'text/markdown' }));
+
+      const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Drive API ${response.status}`);
+      }
+      const data = await response.json();
+      sendResponse({ success: true, fileId: data.id, name: filename });
+    } catch (e) {
+      sendResponse({ success: false, error: e.message });
+    }
+  });
 }
