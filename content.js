@@ -103,6 +103,7 @@
     .gv-hist-btn { font-size: 10px; padding: 4px 8px; border-radius: 5px; border: none; cursor: pointer; font-weight: 600; }
     .gv-hist-btn-regen { background: #cba6f7; color: #1e1e2e; }
     .gv-hist-btn-regen:disabled { opacity: 0.4; cursor: not-allowed; }
+    .gv-hist-btn-copy { background: #313244; color: #89b4fa; }
     .gv-hist-btn-del { background: #313244; color: #f38ba8; }
     .gv-hist-regen-status { font-size: 10px; color: #a6adc8; margin-top: 4px; display: none; }
 
@@ -361,7 +362,8 @@
           <div class="gv-hist-date">📅 ${item.date}</div>
           <div class="gv-hist-preview">${preview || 'Sin resumen'}</div>
           <div class="gv-hist-actions">
-            <button class="gv-hist-btn gv-hist-btn-regen" id="hist-regen-${i}">🔄 Re-generar resumen</button>
+            <button class="gv-hist-btn gv-hist-btn-regen" id="hist-regen-${i}">🔄 Re-generar</button>
+            <button class="gv-hist-btn gv-hist-btn-copy" id="hist-copy-${i}">📋 Copiar</button>
             <button class="gv-hist-btn gv-hist-btn-del" id="hist-del-${i}">🗑️ Eliminar</button>
           </div>
           <div class="gv-hist-regen-status" id="hist-status-${i}"></div>
@@ -374,6 +376,18 @@
           const btn = shadow.getElementById(`hist-regen-${i}`);
           const status = shadow.getElementById(`hist-status-${i}`);
           regenSummary(i, item.transcript, btn, status);
+        });
+        div.querySelector(`#hist-copy-${i}`).addEventListener('click', (e) => {
+          e.stopPropagation();
+          const btn = shadow.getElementById(`hist-copy-${i}`);
+          const text = `# Resumen — ${item.date}\n\n${item.summary || ''}\n\n---\n\n## Transcripción\n\n${item.transcript || ''}`;
+          navigator.clipboard.writeText(text).then(() => {
+            btn.textContent = '✅ Copiado';
+            setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
+          }).catch(() => {
+            btn.textContent = '❌ Error';
+            setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
+          });
         });
         div.querySelector(`#hist-del-${i}`).addEventListener('click', (e) => {
           e.stopPropagation();

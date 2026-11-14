@@ -33,7 +33,7 @@ chrome.action.onClicked.addListener(async (tab) => {
       return;
     } catch (e) {
       try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['config.js', 'content.js'] });
         await new Promise((r) => setTimeout(r, 200));
         await chrome.tabs.sendMessage(tab.id, { type: 'toggle-panel' });
         return;
