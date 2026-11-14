@@ -127,6 +127,10 @@
     .gv-toggle input:checked + .gv-toggle-slider:before { transform: translateX(16px); background: #1e1e2e; }
     .gv-btn-save { background: #cba6f7; color: #1e1e2e; border: none; border-radius: 6px; padding: 8px; font-weight: 700; font-size: 13px; cursor: pointer; width: 100%; margin-top: auto; }
     .gv-btn-save:hover { background: #b48ee0; }
+    .gv-help-body { overflow-y: auto; flex: 1; padding-bottom: 4px; }
+    .gv-help-section { font-size: 12px; font-weight: 700; color: #cba6f7; margin: 10px 0 5px; }
+    .gv-help-list { margin: 0 0 8px 0; padding-left: 18px; font-size: 11px; color: #cdd6f4; line-height: 1.7; }
+    .gv-help-copy { margin-top: 14px; padding: 10px; background: #181825; border-radius: 8px; border: 1px solid #313244; font-size: 12px; color: #cdd6f4; line-height: 1.8; text-align: center; }
   `;
   shadow.appendChild(style);
 
@@ -140,6 +144,7 @@
       </div>
       <div class="gv-header-actions">
         <span class="gv-status" id="gv-status">Inactivo</span>
+        <button class="gv-iconbtn" id="gv-help-btn" title="Ayuda">❓</button>
         <button class="gv-iconbtn" id="gv-settings-btn" title="Ajustes">⚙️</button>
         <button class="gv-iconbtn" id="gv-close" title="Cerrar">✕</button>
       </div>
@@ -189,6 +194,39 @@
       </div>
     </div>
 
+    <!-- Help overlay -->
+    <div class="gv-settings-overlay" id="gv-help-overlay">
+      <div class="gv-settings-title">
+        ❓ Ayuda &amp; Créditos
+        <button class="gv-iconbtn" id="gv-help-close">✕</button>
+      </div>
+      <div class="gv-help-body">
+        <div class="gv-help-section">📌 <strong>¿Cómo usar GustavIA?</strong></div>
+        <ol class="gv-help-list">
+          <li>Abre una reunión en Google Meet u otra pestaña con audio.</li>
+          <li>Haz clic en el ícono de GustavIA en la barra de extensiones.</li>
+          <li>Pulsa <strong>⏺ Iniciar Grabación</strong> para comenzar.</li>
+          <li>La transcripción en vivo aparecerá en tiempo real.</li>
+          <li>Pulsa <strong>⏹ Detener</strong> cuando termine la reunión.</li>
+          <li>GustavIA procesará el audio y generará el resumen.</li>
+          <li>Exporta el resultado en <strong>.docx</strong>, <strong>.md</strong>, cópialo o súbelo a Drive.</li>
+          <li>Accede a sesiones anteriores en la pestaña <strong>📋 Historial</strong>.</li>
+        </ol>
+        <div class="gv-help-section">⚙️ <strong>Ajustes disponibles</strong></div>
+        <ul class="gv-help-list">
+          <li><strong>Prompt personalizado:</strong> define cómo la IA genera el resumen.</li>
+          <li><strong>Modo privacidad:</strong> reemplaza nombres propios por [Persona A], [Persona B]…</li>
+          <li><strong>Idioma:</strong> ES, EN o Auto para la transcripción en vivo.</li>
+        </ul>
+        <div class="gv-help-copy">
+          ✨ <strong>GustavIA</strong> [Asistente de Reuniones con IA]<br>
+          Creado por <strong>Ing. Gustavo A. Alzate</strong><br>
+          📧 galegui@gmail.com<br>
+          <span style="font-size:11px;color:#a6adc8;">® Todos los derechos reservados · 2026</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Settings overlay -->
     <div class="gv-settings-overlay" id="gv-settings-overlay">
       <div class="gv-settings-title">
@@ -224,6 +262,9 @@
   const closeBtn = $('gv-close');
   const dragHandle = $('gv-drag');
   const langSel = $('gv-lang');
+  const helpBtn = $('gv-help-btn');
+  const helpOverlay = $('gv-help-overlay');
+  const helpClose = $('gv-help-close');
   const settingsBtn = $('gv-settings-btn');
   const settingsOverlay = $('gv-settings-overlay');
   const settingsClose = $('gv-settings-close');
@@ -278,6 +319,8 @@
     };
     chrome.storage.local.set({ gustavia_settings: settings });
   }
+  helpBtn.onclick = () => helpOverlay.classList.add('open');
+  helpClose.onclick = () => helpOverlay.classList.remove('open');
   settingsBtn.onclick = () => { loadSettings(); settingsOverlay.classList.add('open'); };
   settingsClose.onclick = () => settingsOverlay.classList.remove('open');
   settingsSave.onclick = () => { saveSettings(); settingsOverlay.classList.remove('open'); };
